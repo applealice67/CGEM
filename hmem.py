@@ -1,8 +1,8 @@
 from decimal import Decimal, InvalidOperation
 import os
-
 import re
 import csv
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -55,10 +55,6 @@ def if_manufacturer_match(m1, m2, t1, t2):
     return -1
 
 
-import re
-from decimal import Decimal, InvalidOperation
-
-
 def precise_abs_difference(input1, input2):
     def extract_number(s):
         """Extract the first valid number (integer/decimal/scientific notation) from a string"""
@@ -84,7 +80,7 @@ def precise_abs_difference(input1, input2):
     if num1 is None or num2 is None:
         return -1
 
-        # Calculate the absolute difference and convert to integer (truncate decimals)
+    # Calculate the absolute difference and convert to integer (truncate decimals)
     difference = abs(num1 - num2)
     return int(difference)  # Or use round(difference, 0) for rounding
 
@@ -103,7 +99,7 @@ def common_words_after_removal(m1: str, m2: str, t1: str, t2: str) -> str:
 
     elif not m2:
         if m1 in t2:
-            t2 = t2.replace(m1, '', 1)  # Remove m1 from t2
+            t2 = t1.replace(m1, '', 1)  # Remove m1 from t2
         t2 = t2.replace(m1, '', 1)  # Remove m1 from t2
 
     # Split t1 and t2 into word lists
@@ -153,7 +149,7 @@ def parse_line_todic(line):
             if isinstance(result[key], tuple):
                 result[key] += (" ".join(value),)
             else:
-                result[key] = " ".join(value)
+                result[key] = (" ".join(value),)
         else:
             result[key] = " ".join(value)
 
@@ -191,7 +187,7 @@ def parse_file_todic(file_path):
 
 def dict_tolist(dic_data):
     keys = list(dic_data.keys())
-    dual_output(keys)
+    dual_output(str(keys))
     list_data = []
     for i in range(len(dic_data["label"])):
         item = []
@@ -223,8 +219,6 @@ def data_augment(list_data):
     return result_data
 
 
-import re
-
 stop_words = set(
     ['such', "you'd", 'y', 't', 'down', 'i', 'by', 'whom', 'most', 'his', 'does', 'are', 'between', 're', 'isn', 'only',
      'she', 'of', 'had', 'through', 'other', 'needn', 'be', 'below', 'should', 'when', 'on', 'for', "don't", 'until',
@@ -254,7 +248,6 @@ def noStopwords(line):
 
 
 def _process_AGdata_entry(title_pair, manufacturer_pair, price_pair, label):
-    # {'title': 0.14652534375208545, 'manufacturer': 0.05769829852974523, 'price': 0.20776585468018058,
     t1, t2 = title_pair
     m1, m2 = manufacturer_pair
     p1, p2 = price_pair
@@ -268,7 +261,6 @@ def _process_AGdata_entry(title_pair, manufacturer_pair, price_pair, label):
 
 
 def _process_Bdata_entry(name_pair, factory_pair, style_pair, abv_pair, label):
-    # {'Beer_Name': 0.24430906805413774, 'Brew_Factory_Name': 0.28038944996494647, 'Style': -0.27087976005199366, 'ABV': 0.20007473887936267,
     n1, n2 = name_pair
     f1, f2 = factory_pair
     t1, t2 = style_pair
@@ -286,7 +278,6 @@ def _process_Bdata_entry(name_pair, factory_pair, style_pair, abv_pair, label):
 
 
 def _process_WAdata_entry(title_pair, category_pair, brand_pair, modelno_pair, price_pair, label):
-    # {'title': -0.01971571078298578, 'category': 0.045308931761990134, 'brand': -0.02751322714297252, 'modelno': 0.1398147006881398, 'price': 0.15020384295658573}
     t1, t2 = title_pair
     c1, c2 = category_pair
     b1, b2 = brand_pair
@@ -304,7 +295,6 @@ def _process_WAdata_entry(title_pair, category_pair, brand_pair, modelno_pair, p
 
 
 def _process_ABdata_entry(name_pair, description_pair, price_pair, label):
-    # {'name': np.float64(0.12580924334638566), 'description': np.float64(-0.08685249301028268), 'price': np.float64(0.04595287378569339), 'overall': np.float64(0.12580924334638566)}
     n1, n2 = name_pair
     d1, d2 = description_pair
     p1, p2 = price_pair
@@ -344,7 +334,6 @@ def _process_IAdata_entry(Song_Name_pair, Artist_Name_pair, Album_Name_pair, Gen
 
 
 def _process_FZdata_entry(name_pair, addr_pair, city_pair, phone_pair, type_pair, class_pair, label):
-    # {'name': 0.47258647660820996, 'addr': 0.25200868914159175, 'city': 0.0546193907431387, 'phone': 0.3766036095312342, 'type': 0.019489420037281442, 'class': 0.5555150228810763,
     n1, n2 = name_pair
     a1, a2 = addr_pair
     c1, c2 = city_pair
@@ -394,7 +383,6 @@ def _process_DGdata_entry(title_pair, authors_pair, venue_pair, year_pair, label
 
 
 def _process_Cdata_entry(content, label):
-    # {'content': 0.0, 'label': 1}
     c1, c2 = content
     c1 = noStopwords(c1)
     c2 = noStopwords(c2)
@@ -542,7 +530,7 @@ class WeightedClassifier(nn.Module):
 
 class WeightedClassifier1(nn.Module):
     def __init__(self, hidden_size, num_chunks, learnable_alpha=True, use_moe=False):
-        super(WeightedClassifier, self).__init__()
+        super(WeightedClassifier1, self).__init__()
 
         self.num_chunks = num_chunks
         self.chunk_size = hidden_size // num_chunks
@@ -599,10 +587,50 @@ from torch.optim import AdamW
 from transformers import get_cosine_schedule_with_warmup
 
 
-def train(trainData, testData, first_load=False):
+def _run_eval(model, classifier, loader):
+    """Evaluate a given classifier on the loader and return metrics + per-sample predictions."""
+    model.eval()
+    classifier.eval()
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        for batch in loader:
+            input_ids_list = [x.to(device) for x in batch['input_ids']]
+            attention_mask_list = [x.to(device) for x in batch['attention_mask']]
+            labels = batch['labels'].to(device)
+
+            outputs_list = []
+            for input_ids, attention_mask in zip(input_ids_list, attention_mask_list):
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+                outputs_list.append(outputs.last_hidden_state[:, 0, :])
+
+            combined_outputs = torch.cat(outputs_list, dim=1)
+            logits = classifier(combined_outputs)
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).long().flatten()
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    accuracy = accuracy_score(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds, zero_division=0)
+    recall = recall_score(all_labels, all_preds, zero_division=0)
+    f1 = f1_score(all_labels, all_preds, zero_division=0)
+    return accuracy, precision, recall, f1, all_labels, all_preds
+
+
+def train(trainData, validData, testData, first_load=False):
+    """
+    Training protocol:
+      - trainData : used for gradient updates
+      - validData : used to select the best checkpoint (per epoch)
+      - testData  : used EXACTLY ONCE, after training, with the best checkpoint
+    """
     train_dataset = SentenceSimilarityDataset(trainData, max_len, tokenizer)
+    valid_dataset = SentenceSimilarityDataset(validData, max_len, tokenizer)
     test_dataset = SentenceSimilarityDataset(testData, max_len, tokenizer)
+
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     classifier = WeightedClassifier(model.config.hidden_size * pairNum, pairNum).to(device)
@@ -636,7 +664,7 @@ def train(trainData, testData, first_load=False):
         scheduler.load_state_dict(checkpoint.get('scheduler_state_dict', {}))
         best_f1 = checkpoint.get('best_f1', 0)
         best_epoch = checkpoint.get('epoch', 0)
-        dual_output(f"Loaded model from {save_path}, best F1: {best_f1:.4f} at epoch {best_epoch + 1}")
+        dual_output(f"Loaded model from {save_path}, best valid F1: {best_f1:.4f} at epoch {best_epoch + 1}")
 
     for epoch in range(num_epochs):
         model.train()
@@ -669,36 +697,12 @@ def train(trainData, testData, first_load=False):
                 dual_output(
                     f"Epoch {epoch + 1}, Batch {batch_idx}, loss: {loss.item():.4f}, total_loss: {train_loss:.4f}")
 
-        model.eval()
-        classifier.eval()
-        all_preds = []
-        all_labels = []
-
-        with torch.no_grad():
-            for batch in test_loader:
-                input_ids_list = [x.to(device) for x in batch['input_ids']]
-                attention_mask_list = [x.to(device) for x in batch['attention_mask']]
-                labels = batch['labels'].to(device)
-
-                outputs_list = []
-                for input_ids, attention_mask in zip(input_ids_list, attention_mask_list):
-                    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-                    outputs_list.append(outputs.last_hidden_state[:, 0, :])
-
-                combined_outputs = torch.cat(outputs_list, dim=1)
-                logits = classifier(combined_outputs)
-                probs = torch.sigmoid(logits)
-                preds = (probs > 0.5).long().flatten()
-                all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-
-        accuracy = accuracy_score(all_labels, all_preds)
-        precision = precision_score(all_labels, all_preds)
-        recall = recall_score(all_labels, all_preds)
-        f1 = f1_score(all_labels, all_preds)
+        # -------- Validate on validData to select best checkpoint --------
+        accuracy, precision, recall, f1, _, _ = _run_eval(model, classifier, valid_loader)
 
         dual_output(
-            f"Epoch {epoch + 1} Test Metrics: Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+            f"Epoch {epoch + 1} Valid Metrics: Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, "
+            f"Recall: {recall:.4f}, F1: {f1:.4f}")
 
         if hasattr(classifier, "alpha"):
             alpha_now = torch.softmax(classifier.alpha, dim=0).detach().cpu().numpy()
@@ -708,9 +712,6 @@ def train(trainData, testData, first_load=False):
         if hasattr(classifier, "gate_layers"):
             classifier.eval()
             with torch.no_grad():
-
-                dummy_input = torch.randn(1, classifier.chunk_size).to(device)
-
                 gate_means = []
                 for i, gate_layer in enumerate(classifier.gate_layers):
                     in_dim = gate_layer.in_features  # Linear layer attributes
@@ -720,6 +721,7 @@ def train(trainData, testData, first_load=False):
                 gate_str = ', '.join([f"G{i + 1}={g:.3f}" for i, g in enumerate(gate_means)])
                 dual_output(f"Gate preview (single input): [{gate_str}]")
 
+        # -------- Save best checkpoint based on validation F1 --------
         if f1 > best_f1:
             torch.save({
                 'model_state_dict': model.state_dict(),
@@ -731,56 +733,37 @@ def train(trainData, testData, first_load=False):
             }, save_path)
             best_f1 = f1
             best_epoch = epoch
-            dual_output(f"Saved best model with F1 {f1:.4f}")
+            dual_output(f"Saved best checkpoint with valid F1 {f1:.4f}")
         else:
+            
             checkpoint = torch.load(save_path, weights_only=True)
             model.load_state_dict(checkpoint['model_state_dict'])
             classifier.load_state_dict(checkpoint['classifier_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             scheduler.load_state_dict(checkpoint.get('scheduler_state_dict', {}))
-            best_f1 = checkpoint.get('best_f1', 0)
-            best_epoch = checkpoint.get('epoch', 0)
-            dual_output(f"Loaded model best F1: {best_f1:.4f} at epoch {best_epoch + 1}")
+            dual_output(
+                f"Reloaded best checkpoint: valid F1 {best_f1:.4f} at epoch {best_epoch + 1}")
 
-    dual_output(f"Training complete. Best F1: {best_f1:.4f} at epoch {best_epoch + 1}")
+    dual_output(f"Training complete. Best valid F1: {best_f1:.4f} at epoch {best_epoch + 1}")
 
-    # ========== Load best model and write prediction results ==========
+    # ========== FINAL EVALUATION on TEST set (used exactly once) ==========
     checkpoint = torch.load(save_path, weights_only=True)
     model.load_state_dict(checkpoint['model_state_dict'])
     classifier.load_state_dict(checkpoint['classifier_state_dict'])
 
-    model.eval()
-    classifier.eval()
-    all_preds = []
-    all_labels = []
+    accuracy, precision, recall, f1, all_labels, all_preds = _run_eval(model, classifier, test_loader)
 
-    with torch.no_grad():
-        for batch in test_loader:
-            input_ids_list = [x.to(device) for x in batch['input_ids']]
-            attention_mask_list = [x.to(device) for x in batch['attention_mask']]
-            labels = batch['labels'].to(device)
-
-            outputs_list = []
-            for input_ids, attention_mask in zip(input_ids_list, attention_mask_list):
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-                outputs_list.append(outputs.last_hidden_state[:, 0, :])
-
-            combined_outputs = torch.cat(outputs_list, dim=1)
-            logits = classifier(combined_outputs)
-            probs = torch.sigmoid(logits)
-            preds = (probs > 0.5).long().flatten()
-
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+    dual_output(
+        f"[FINAL TEST] Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, "
+        f"Recall: {recall:.4f}, F1: {f1:.4f}")
 
     # ========== Write results to result.csv ==========
-    import csv
-    result_path = "result.csv"  # Can customize the path
+    result_path = "result.csv"
     with open(result_path, mode='w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(["Index", "True Label", "Predicted Label"])
         for idx, (true, pred) in enumerate(zip(all_labels, all_preds)):
-            writer.writerow([idx, true, pred])
+            writer.writerow([idx, int(true), int(pred)])
 
     dual_output(f"Prediction results saved to {result_path}")
 
@@ -799,17 +782,12 @@ if __name__ == "__main__":
     dataset = args.dataset
 
     if dataset == "Amazon-Google":
-        # alpha=[0.1426, 0.1388, 0.2607, 0.0532]
-        # alpha=[1.0, 1.0, 2.0, 0.0]
         alpha = [1.0, 2.0, 0.0]
         path = 'data/er_magellan/Structured'
         batch_size = 16
         num_epochs = 30
 
     elif dataset == 'Beer':
-        # alpha=[0.2727, 0.2970, 0.3068, 0.1748, -0.2054]
-        # alpha=[1.0, 1.0, 1.0, 1.0, 0.0]
-        # alpha=[2.0, 2.0, 1.0, 0.0]
         alpha = [1.0, 1.0, 1.0, 0.0]
         path = 'data/er_magellan/Structured'
         batch_size = 8
@@ -822,42 +800,30 @@ if __name__ == "__main__":
         num_epochs = 20
 
     elif dataset == 'Walmart-Amazon':
-        # alpha=[0.1664, 0.1925, 0.1437, 0.0843, 0.0470, -0.0622]
-        # alpha=[4.0, 3.0, 2.0, 1.0, 0.0]
-        # alpha=[2.0, 2.0, 1.0, 1.0, 0.0]
         alpha = [1.0, 1.0, 1.0, 0.0, 0.0]
         path = 'data/er_magellan/Dirty'
         batch_size = 16
         num_epochs = 20
 
     elif dataset == 'Abt-Buy':
-        # alpha=[0.1301, 0.1968, 0.0274, -0.0091]
-        # alpha=[1.0, 1.0, 1.0, 0.0]
         alpha = [1.0, 1.0, 1.0]  # Best
-        # alpha=[2.0, 1.0, 0.0]
         path = 'data/er_magellan/Textual'
         batch_size = 16
         num_epochs = 20
 
     elif dataset == "iTunes-Amazon":
-        # alpha=[0.2911, 0.6661, 0.5724, 0.2905, 0.2834, 0.1429, 0.1, 0.0440, -0.2014]
-        # alpha=[2.0, 3.0, 3.0, 2.0, 2.0, 1.0, 1.0, 1.0, 0.0]
         alpha = [3.0, 3.0, 2.0, 2.0, 1.0, 1.0, 1.0, 0.0]
         path = 'data/er_magellan/Dirty'
         batch_size = 8
         num_epochs = 20
 
     elif dataset == "DBLP-ACM":
-        # alpha=[1.0, 1.0, 1.0, 1.0, 1.0]
-        # alpha=[0.5942, 0.6081, 0.6022, 0.5832, 0.1003]
         alpha = [1.0, 1.0, 1.0, 1.0]
         path = 'data/er_magellan/Dirty'
         batch_size = 16
         num_epochs = 20
 
     elif dataset == "DBLP-GoogleScholar":
-        # alpha=[0.4399, 0.5269, 0.2591, 0.0152]
-        # alpha=[1.0, 1.0, 1.0, 1.0, 0.0]
         alpha = [1.0, 1.0, 1.0, 0.0]
         path = 'data/er_magellan/Dirty'
         batch_size = 16
@@ -869,12 +835,18 @@ if __name__ == "__main__":
         batch_size = 16
         num_epochs = 20
 
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+
     save_path = f'{path}/{dataset}/best_model.pth'
     gate_dir = f'{path}/{dataset}/'
 
-    trainData, testData, pairNum = getData(path, dataset)
+    # getData() must return (trainData, validData, testData, pairNum)
+    # where validData is used ONLY for model selection and testData is
+    # touched exactly once for the final report.
+    trainData, validData, testData, pairNum = getData(path, dataset)
 
-    dual_output("Loading trainData and testData")
+    dual_output("Loaded trainData / validData / testData")
     dual_output("Starting training...")
-    train(trainData, testData, first_load=firstload)
+    train(trainData, validData, testData, first_load=firstload)
     dual_output("Process completed.")
